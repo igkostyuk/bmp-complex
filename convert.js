@@ -18,7 +18,7 @@ class MirrorStream extends Transform {
 
     this.isPushed = false;
 
-    this.test = [];
+    this.position = 0;
   }
 
   getHeader() {
@@ -60,26 +60,25 @@ class MirrorStream extends Transform {
     }
 
     this.writhedLinesNumber += 1;
+    this.state = "read image";
     this.push(reversedLine);
 
     // this.test.push(...reversedLine);
 
     this.cache = this.cache.slice(this.lineWidth);
-    this.isPushed = true;
   }
 
   _transform(chunk, encoding, cb) {
-    let position = 0;
     // this.isPushed = true;
     // this.currentBuff = chunk;
-    while (position <= chunk.length) {
+    while (this.position <= chunk.length) {
       if (this.state === "read header") {
         this.cache = Buffer.concat([this.cache, chunk.slice(0, 30)]);
         if (this.cache.length >= 30) {
           this.getHeader();
           this.state = "write header";
         }
-        position += 30;
+        this.position += 30;
       }
       if (this.state === "write header") {
         if (this.imageHeader.flag !== "BM" || this.imageHeader.bitPP !== 24) {
@@ -87,40 +86,44 @@ class MirrorStream extends Transform {
         }
         this.cache = Buffer.concat([
           this.cache,
-          chunk.slice(position, this.imageHeader.offset)
+          chunk.slice(this.position, this.imageHeader.offset)
         ]);
-        position = this.imageHeader.offset;
+        this.position = this.imageHeader.offset;
 
         if (this.cache.length >= this.imageHeader.offset) {
           this.writeHeader();
+          this.state = "read image";
+        }
+      }
+      if (this.state === "read image") {
+        const cacheLength = this.cache.length;
+        this.cache = Buffer.concat([
+          this.cache,
+          chunk.slice(
+            this.position,
+            this.position + this.lineWidth - cacheLength
+          )
+        ]);
+
+        if (this.cache.length >= this.lineWidth) {
           this.state = "write image";
         }
+
+        this.position += this.lineWidth - cacheLength;
       }
       if (this.state === "write image") {
-        if (this.isPushed) {
-          // console.log(position, this.writhedLinesNumber, chunk.length);
-
-          this.cache = Buffer.concat([
-            this.cache,
-            chunk.slice(position, position + this.lineWidth)
-          ]);
-          if (this.cache.length >= this.lineWidth) {
-            this.isPushed = false;
-            this.writeReversedLine();
-          }
-
-          position += this.lineWidth;
-        }
+        this.writeReversedLine();
       }
     }
+    this.position -= this.cache.length;
     cb();
   }
 
   _flush(cb) {
-    if (
-      this.writhedLinesNumber < this.imageHeader.height ||
-      this.state !== "write image"
-    ) {
+    // if (this.writhedLinesNumber <= this.imageHeader.height) {
+    //   cb(new InvalidImageError());
+    // }
+    if (this.state !== "read image") {
       cb(new InvalidImageError());
     }
     cb();
