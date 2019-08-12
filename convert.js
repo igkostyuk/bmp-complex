@@ -89,16 +89,19 @@ class MirrorStream extends Transform {
       }
       if (this.state === "write image") {
         if (this.isPushed) {
+          const cacheLength = this.cache.length;
           this.cache = Buffer.concat([
             this.cache,
-            this.currentBuff.slice(0, this.lineWidth)
+            this.currentBuff.slice(0, this.lineWidth - cacheLength)
           ]);
           if (this.cache.length >= this.lineWidth) {
             this.isPushed = false;
             this.writeReversedLine();
           }
 
-          this.currentBuff = this.currentBuff.slice(this.lineWidth);
+          this.currentBuff = this.currentBuff.slice(
+            this.lineWidth - cacheLength
+          );
         }
       }
     }
