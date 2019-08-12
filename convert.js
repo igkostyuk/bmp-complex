@@ -42,14 +42,13 @@ class MirrorStream extends Transform {
   writeHeader() {
     this.push(this.cache.slice(0, this.imageHeader.offset));
 
-    this.test.push(...this.cache.slice(0, this.imageHeader.offset));
+    // this.test.push(...this.cache.slice(0, this.imageHeader.offset));
 
     this.cache = this.cache.slice(this.imageHeader.offset);
     this.isPushed = true;
   }
 
   writeReversedLine() {
-    this.isPushed = false;
     const reversedLine = Buffer.alloc(this.lineWidth);
     for (let i = 0; i < this.imageHeader.width; i += 1) {
       this.cache.copy(
@@ -63,7 +62,7 @@ class MirrorStream extends Transform {
     this.writhedLinesNumber += 1;
     this.push(reversedLine);
 
-    this.test.push(...reversedLine);
+    // this.test.push(...reversedLine);
 
     this.cache = this.cache.slice(this.lineWidth);
     this.isPushed = true;
@@ -71,6 +70,7 @@ class MirrorStream extends Transform {
 
   _transform(chunk, encoding, cb) {
     let position = 0;
+    // this.isPushed = true;
     // this.currentBuff = chunk;
     while (position <= chunk.length) {
       if (this.state === "read header") {
@@ -98,11 +98,14 @@ class MirrorStream extends Transform {
       }
       if (this.state === "write image") {
         if (this.isPushed) {
+          // console.log(position, this.writhedLinesNumber, chunk.length);
+
           this.cache = Buffer.concat([
             this.cache,
             chunk.slice(position, position + this.lineWidth)
           ]);
           if (this.cache.length >= this.lineWidth) {
+            this.isPushed = false;
             this.writeReversedLine();
           }
 
