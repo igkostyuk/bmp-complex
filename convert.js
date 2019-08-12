@@ -35,8 +35,6 @@ class MirrorStream extends Transform {
         ? 4 - (((this.imageHeader.bitPP / 8) * this.imageHeader.height) % 4)
         : 0;
     this.lineWidth = 3 * this.imageHeader.width + this.padding;
-
-    this.reversedLine = Buffer.alloc(this.lineWidth);
   }
 
   writeHeader() {
@@ -47,10 +45,10 @@ class MirrorStream extends Transform {
 
   writeReversedLine() {
     this.isPushed = false;
-
+    const reversedLine = Buffer.alloc(this.lineWidth);
     for (let i = 0; i < this.imageHeader.width; i += 1) {
       this.cache.copy(
-        this.reversedLine,
+        reversedLine,
         3 * i,
         3 * (this.imageHeader.width - i - 1),
         3 * (this.imageHeader.width - i)
@@ -58,7 +56,7 @@ class MirrorStream extends Transform {
     }
 
     this.writhedLinesNumber += 1;
-    this.push(this.reversedLine);
+    this.push(reversedLine);
     this.cache = this.cache.slice(this.lineWidth);
     this.isPushed = true;
   }
@@ -90,30 +88,32 @@ class MirrorStream extends Transform {
         }
       }
       if (this.state === "write image") {
-        this.cache = Buffer.concat([
-          this.cache,
-          this.currentBuff.slice(0, this.lineWidth)
-        ]);
-        if (this.cache.length >= this.lineWidth) {
-          if (this.isPushed) {
+        if (this.isPushed) {
+          this.cache = Buffer.concat([
+            this.cache,
+            this.currentBuff.slice(0, this.lineWidth)
+          ]);
+          if (this.cache.length >= this.lineWidth) {
+            this.isPushed = false;
             this.writeReversedLine();
           }
+
+          this.currentBuff = this.currentBuff.slice(this.lineWidth);
         }
-        // if (this.writhedLinesNumber === this.imageHeader.height) {
-        //   this.state = "write rest";
-        // }
-        this.currentBuff = this.currentBuff.slice(this.lineWidth);
       }
     }
     cb();
   }
 
-  // _flush(cb) {
-  //   console.log(this.imageHeader);
-  //   console.log(this.writhedLinesNumber);
-  //   console.log(this.state);
-  //   cb(new InvalidImageError());
-  // }
+  _flush(cb) {
+    if (
+      this.writhedLinesNumber < this.imageHeader.height ||
+      this.state !== "write image"
+    ) {
+      cb(new InvalidImageError());
+    }
+    cb();
+  }
 }
 
 module.exports = MirrorStream;
