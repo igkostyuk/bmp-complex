@@ -15,6 +15,8 @@ class MirrorStream extends Transform {
     this.lineWidth = null;
 
     this.writhedLinesNumber = 0;
+
+    this.isPushed = false;
   }
 
   getHeader() {
@@ -33,19 +35,22 @@ class MirrorStream extends Transform {
         ? 4 - (((this.imageHeader.bitPP / 8) * this.imageHeader.height) % 4)
         : 0;
     this.lineWidth = 3 * this.imageHeader.width + this.padding;
+
+    this.reversedLine = Buffer.alloc(this.lineWidth);
   }
 
   writeHeader() {
     this.push(this.cache.slice(0, this.imageHeader.offset));
     this.cache = this.cache.slice(this.imageHeader.offset);
+    this.isPushed = true;
   }
 
   writeReversedLine() {
-    const reversedLine = Buffer.alloc(this.lineWidth);
+    this.isPushed = false;
 
     for (let i = 0; i < this.imageHeader.width; i += 1) {
       this.cache.copy(
-        reversedLine,
+        this.reversedLine,
         3 * i,
         3 * (this.imageHeader.width - i - 1),
         3 * (this.imageHeader.width - i)
@@ -53,8 +58,9 @@ class MirrorStream extends Transform {
     }
 
     this.writhedLinesNumber += 1;
-    this.push(reversedLine);
+    this.push(this.reversedLine);
     this.cache = this.cache.slice(this.lineWidth);
+    this.isPushed = true;
   }
 
   _transform(chunk, encoding, cb) {
@@ -70,7 +76,7 @@ class MirrorStream extends Transform {
       }
       if (this.state === "write header") {
         if (this.imageHeader.flag !== "BM" || this.imageHeader.bitPP !== 24) {
-          throw new InvalidImageError();
+          cb(new InvalidImageError());
         }
         this.cache = Buffer.concat([
           this.cache,
@@ -89,7 +95,9 @@ class MirrorStream extends Transform {
           this.currentBuff.slice(0, this.lineWidth)
         ]);
         if (this.cache.length >= this.lineWidth) {
-          this.writeReversedLine();
+          if (this.isPushed) {
+            this.writeReversedLine();
+          }
         }
         // if (this.writhedLinesNumber === this.imageHeader.height) {
         //   this.state = "write rest";
@@ -104,7 +112,7 @@ class MirrorStream extends Transform {
   //   console.log(this.imageHeader);
   //   console.log(this.writhedLinesNumber);
   //   console.log(this.state);
-  //   throw new InvalidImageError();
+  //   cb(new InvalidImageError());
   // }
 }
 
