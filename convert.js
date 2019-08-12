@@ -91,9 +91,9 @@ class MirrorStream extends Transform {
         if (this.cache.length >= this.lineWidth) {
           this.writeReversedLine();
         }
-        if (this.writhedLinesNumber === this.imageHeader.height) {
-          this.state = "write rest";
-        }
+        // if (this.writhedLinesNumber === this.imageHeader.height) {
+        //   this.state = "write rest";
+        // }
         this.currentBuff = this.currentBuff.slice(this.lineWidth);
       }
     }
