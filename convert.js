@@ -70,14 +70,20 @@ class MirrorStream extends Transform {
         }
       }
       if (this.state === "read image") {
-        const cacheLength = this.cache.length;
-        this.cache = Buffer.concat([
-          this.cache,
-          this.currentBuff.slice(0, this.lineWidth - cacheLength)
-        ]);
-        this.currentBuff = this.currentBuff.slice(this.lineWidth - cacheLength);
         if (this.cache.length >= this.lineWidth) {
           this.state = "write image";
+        } else {
+          const cacheLength = this.cache.length;
+          this.cache = Buffer.concat([
+            this.cache,
+            this.currentBuff.slice(0, this.lineWidth - cacheLength)
+          ]);
+          this.currentBuff = this.currentBuff.slice(
+            this.lineWidth - cacheLength
+          );
+          if (this.cache.length >= this.lineWidth) {
+            this.state = "write image";
+          }
         }
       }
       if (this.state === "write image") {
@@ -89,7 +95,14 @@ class MirrorStream extends Transform {
             3 * (this.imageHeader.width - i - 1),
             3 * (this.imageHeader.width - i)
           );
+          // this.push(
+          //   this.cache.slice(
+          //     3 * (this.imageHeader.width - i - 1),
+          //     3 * (this.imageHeader.width - i)
+          //   )
+          // );
         }
+        // this.push(Buffer.alloc(this.padding));
 
         this.writhedLinesNumber += 1;
         this.push(reversedLine);
@@ -101,12 +114,13 @@ class MirrorStream extends Transform {
   }
 
   _flush(cb) {
-    if (
-      this.writhedLinesNumber < this.imageHeader.height ||
-      this.state !== "read image"
-    ) {
+    if (this.writhedLinesNumber < this.imageHeader.height) {
       cb(new InvalidImageError());
     }
+    if (this.state !== "read image") {
+      cb(new InvalidImageError());
+    }
+
     cb();
   }
 }
