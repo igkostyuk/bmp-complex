@@ -87,25 +87,25 @@ class MirrorStream extends Transform {
         }
       }
       if (this.state === "write image") {
-        const reversedLine = Buffer.alloc(this.lineWidth);
+        // const reversedLine = Buffer.alloc(this.lineWidth);
         for (let i = 0; i < this.imageHeader.width; i += 1) {
-          this.cache.copy(
-            reversedLine,
-            3 * i,
-            3 * (this.imageHeader.width - i - 1),
-            3 * (this.imageHeader.width - i)
-          );
-          // this.push(
-          //   this.cache.slice(
-          //     3 * (this.imageHeader.width - i - 1),
-          //     3 * (this.imageHeader.width - i)
-          //   )
+          // this.cache.copy(
+          //   reversedLine,
+          //   3 * i,
+          //   3 * (this.imageHeader.width - i - 1),
+          //   3 * (this.imageHeader.width - i)
           // );
+          this.push(
+            this.cache.slice(
+              3 * (this.imageHeader.width - i - 1),
+              3 * (this.imageHeader.width - i)
+            )
+          );
         }
-        // this.push(Buffer.alloc(this.padding));
+        this.push(Buffer.alloc(this.padding));
 
         this.writhedLinesNumber += 1;
-        this.push(reversedLine);
+        // this.push(reversedLine);
         this.cache = this.cache.slice(this.lineWidth);
         this.state = "read image";
       }
